@@ -1,4 +1,4 @@
-# StudyVerse
+# SMARTCLASROOM
 
 StudyVerse is a single-room focus platform for small study groups. The experience is intentionally simplified to one shared classroom that supports up to 10 people, with a system-controlled room and no multi-room creation flow.
 
