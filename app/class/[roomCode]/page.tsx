@@ -35,7 +35,16 @@ type StudentAnswer = {
   createdAt: number;
 };
 
-type ClassroomEvent = TeacherPrompt | StudentAnswer;
+type TeacherBanter = {
+  type: "banter";
+  id: string;
+  targetUserId: string;
+  targetUsername: string;
+  message: string;
+  createdAt: number;
+};
+
+type ClassroomEvent = TeacherPrompt | StudentAnswer | TeacherBanter;
 
 const openingQuestion = "Şu ana kadar kaç soru çözdün?";
 const teacherQuestions = [
@@ -52,6 +61,23 @@ const teacherQuestions = [
   "Masanda dikkatini dağıtan bir şey var mı?",
   "Oho, kalem senden hızlı gidiyor; ritmi biraz artırmaya ne dersin?",
   "Oho, bu tempoda kaplumbağa tur bindirecek! Biraz hızlanalım mı?",
+];
+const teacherBanter = [
+  "Ulan {name}, kalemin senden daha çok çalıştı; bir soru daha, haydi!",
+  "Lan {name}, o soruya naz mı yapıyoruz? Çöz de görelim.",
+  "Bu tempoda kaplumbağa senden önce denemeyi bitirir {name}!",
+  "Kahven senden hızlı çalışıyor {name}, toparlanıyoruz!",
+  "Yeter ekrana bakıştığın {name}, kitaba dön be!",
+  "Yahu {name}, bu soruya bakmaktan soru çözüldü sanacaksın.",
+  "Lan {name}, kalem mesaiye kaldı; sen hâlâ ısınıyorsun!",
+  "Ulan {name}, hedefini sen koydun, şimdi hedef sana bakıyor.",
+  "Bir soru da sen çöz {name}, klavye tek başına XP kasmasın.",
+  "Hadi be {name}, kalem bu kadar yalnız bırakılmaz.",
+  "Kitabı dekor diye mi açtın {name}? Bir soru seç de başlayalım.",
+  "Şaka maka {name}, kronometre senden hızlı ilerliyor!",
+  "Ekranla göz göze gelme yarışını bırak {name}, sorular bekliyor.",
+  "Lan {name}, iki satır çöz de hocanın sanal tansiyonu düşsün.",
+  "Beyin loading mi {name}? Bir nefes al, sonra soruya dal!",
 ];
 
 export default function ClassroomPage() {
@@ -204,7 +230,7 @@ export default function ClassroomPage() {
   }, [currentUser, roomCode]);
 
   const sortedOnlineStudents = useMemo(
-    () => [...onlineStudents].sort((first, second) => first.joinedAt.localeCompare(second.joinedAt)),
+    () => [...onlineStudents].sort((first, second) => first.id.localeCompare(second.id)),
     [onlineStudents],
   );
   const isTeacherCoordinator = sortedOnlineStudents[0]?.id === currentUser?.id;
@@ -275,6 +301,51 @@ export default function ClassroomPage() {
 
     return () => window.clearTimeout(timeout);
   }, [activePrompt, connection, currentUser, isTeacherCoordinator, roomCode, sortedOnlineStudents]);
+
+  useEffect(() => {
+    if (connection !== "connected" || !isTeacherCoordinator || !currentUser) return;
+
+    const coordinatorId = currentUser.id;
+    let active = true;
+    let timeout: number;
+
+    function scheduleBanter() {
+      timeout = window.setTimeout(async () => {
+        if (!active || sortedOnlineStudents.length === 0) return;
+
+        const target = sortedOnlineStudents[Math.floor(Math.random() * sortedOnlineStudents.length)];
+        const line = teacherBanter[Math.floor(Math.random() * teacherBanter.length)];
+        const event: TeacherBanter = {
+          type: "banter",
+          id: `banter-${coordinatorId}-${Date.now()}`,
+          targetUserId: target.id,
+          targetUsername: target.username,
+          message: line.replace("{name}", target.username),
+          createdAt: Date.now(),
+        };
+        const result = await channelRef.current?.send({
+          type: "broadcast",
+          event: "classroom-event",
+          payload: event,
+        });
+
+        if (result === "ok") {
+          if (active) {
+            setEvents((previous) => [...previous, event].slice(-40));
+            scheduleBanter();
+          }
+        } else if (active) {
+          setConnection("offline");
+        }
+      }, 20_000 + Math.random() * 25_000);
+    }
+
+    scheduleBanter();
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
+  }, [connection, currentUser, isTeacherCoordinator, sortedOnlineStudents]);
 
   useEffect(() => {
     if (!activePrompt) return;
@@ -428,11 +499,16 @@ export default function ClassroomPage() {
               {events.length === 0 ? (
                 <p className="text-sm text-slate-500">Henüz yanıt yok. İlk soru: “{openingQuestion}”</p>
               ) : events.map((classroomEvent) => (
-                <article key={classroomEvent.id} className={`rounded-lg p-3 text-sm ${classroomEvent.type === "prompt" ? "border border-amber-200 bg-amber-50" : "border border-slate-200 bg-white"}`}>
+                <article key={classroomEvent.id} className={`rounded-lg p-3 text-sm ${classroomEvent.type === "prompt" ? "border border-amber-200 bg-amber-50" : classroomEvent.type === "banter" ? "border border-rose-200 bg-rose-50" : "border border-slate-200 bg-white"}`}>
                   {classroomEvent.type === "prompt" ? (
                     <>
                       <p className="font-bold text-slate-900">👨‍🏫 {classroomEvent.targetUsername ? `${classroomEvent.targetUsername} için soru` : "Hoca soruyor"}</p>
                       <p className="mt-1 font-semibold">{classroomEvent.question}</p>
+                    </>
+                  ) : classroomEvent.type === "banter" ? (
+                    <>
+                      <p className="font-bold text-rose-800">👨‍🏫 Hoca → {classroomEvent.targetUsername}</p>
+                      <p className="mt-1 break-words text-slate-700">{classroomEvent.message}</p>
                     </>
                   ) : (
                     <>

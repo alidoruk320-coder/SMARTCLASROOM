@@ -26,8 +26,10 @@ Create a `.env.local` file using the URL and anon/public key from your Supabase 
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="your-publishable-key"
 ```
+
+For older Supabase projects, `NEXT_PUBLIC_SUPABASE_ANON_KEY` is also supported.
 
 Run [supabase/schema.sql](supabase/schema.sql) in the Supabase SQL Editor, then restart `npm run dev`. It creates zero-initialized profiles on Auth signup, protects profile fields with Row Level Security, atomically enforces the 10-person room capacity, and authorizes the private `classroom:STUDY` channel. In Supabase Realtime settings, disable public channel access so the private-channel policies are enforced.
 
